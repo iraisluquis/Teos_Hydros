@@ -1,0 +1,233 @@
+---
+title: "TEOS HydroStation S Data Lab"
+author: "Irais Luquis Ramos"
+date: "2023-03-07"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+#Load required libraries
+
+```{r message=FALSE}
+library(tidyverse)
+library(gsw)
+library(ggplot2)
+#install.packages('seacarb')
+#install.packages('prettydoc')
+```
+
+#Now we need to import our data
+
+```{r warning=FALSE, message=FALSE}
+library(readr)
+hydrostation_bottle <- read_table("hydrostation_bottle.txt", 
+    col_names = FALSE, skip = 31)
+
+library(readr)
+hydrostation_bottle_names <- read_csv("hydrostation_bottle.txt", 
+    skip = 30)
+
+
+colnames(hydrostation_bottle)=colnames(hydrostation_bottle_names)
+#view(hydrostation_bottle)
+```
+
+Variable Names and Units
+
+-   yyyymmdd = Year Month Day\
+-   decy = Decimal Year\
+-   time = Time (hhmm)\
+-   latN = Latitude (Deg N)
+-   lonW = Longitude (Deg W)
+-   Depth = Depth (m)\
+-   Temp = Temperature ITS-90 (C)
+-   Pres = CTD Pressure (dbar)\
+-   CTD_S = CTD Salinity (PSS-78)\
+-   Sal1 = Salinity-1 (PSS-78)\
+-   Sig-th = Sigma-Theta (kg/m\^3)\
+-   O2(1) = Oxygen-1 (umol/kg)\
+-   OxFixT = Oxygen Fix Temp (C)\
+-   Anom1 = Oxy Anomaly-1 (umol/kg)\
+    Quality flags
+-   -999 = No data
+-   0 = Less than detection limit
+
+```{r}
+#lets firts plot the data
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x = decy, y = `Sig-th`))
+
+
+hydrostation_bottle %>%
+  filter(`Sig-th`!=-999) %>%
+  ggplot()+
+  geom_point(aes(x = decy, y = `Sig-th`))
+
+hydrostation_bottle %>%
+  filter(`Sig-th`!=-999 & Depth <20) %>%
+  ggplot()+
+  geom_point(aes(x = decy, y = `Sig-th`))
+
+hydrostation_bottle %>%
+  filter(`Sig-th`!=-999 & Depth <20) %>%
+  ggplot()+
+  geom_line(aes(x = decy, y = `Sig-th`))
+
+#clear seasonal signal for sigma-theta,lets see how this compares to temperature
+hydrostation_bottle %>%
+  filter(`Sig-th`!=-999 & Depth <20) %>%
+  ggplot()+
+  geom_point(aes(x = Temp, y = `Sig-th`))
+#Temperatures and density ares strongly correleted, but there appears to be two outliers tht we sill likley need to adreess at some point
+#we only have density data from 1988-present, but temperature and salinity data from 1950s-present 
+#This means I can calculate seawater density from 1950s-present 
+#we can use the TEOS-10 to do this
+
+
+
+```
+## TEOS-10 Toolbox in Package seacarb
+
+```{r}
+?gsw #launches the documentation for the gibbs seawater toolbox (TEOS-10). All of this function within the package 
+
+?gsw_sigma0 #lets check this function 
+#it says we need absolute salinity and conservative temperature USAGE
+
+#first we need absolute salinity:
+?gsw_SA_from_SP
+#practical salinity
+#sea pressure (dbar)
+#longitude 
+#latitude
+
+#Lets plot our pressure data - its missing before 1980s
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=Pres))
+
+#we have depth data for the time series 
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=Depth))
+
+?gsw_p_from_z
+
+#adds a pressure colum from the depth and latN colums from/to hydrostation bottle #creates new variable
+
+hydrostation_bottle=
+hydrostation_bottle %>%
+  mutate(Pres_gsw=gsw_p_from_z(Depth*-1,latN))
+
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=Pres, y=Pres_gsw))
+#we see strong 1:1 agreement between measured pressure and calculated pressure
+
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=latN))
+
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=lonW))
+
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=CTD_S))
+
+#Checking lat, lon and salinity data
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=Sal1))
+
+hydrostation_bottle=
+hydrostation_bottle %>%
+  mutate(Pres_gsw=gsw_p_from_z(Depth*-1,latN)) %>%
+  mutate(S_abs_gsw=gsw_SA_from_SP(Sal1,Pres_gsw,360-lonW,latN))
+
+#chek it 
+hydrostation_bottle %>%
+  ggplot()+
+  geom_point(aes(x=decy, y=S_abs_gsw))
+#how else can I check my data
+hydrostation_bottle %>%
+  filter(Sal1!=-999) %>%
+  ggplot()+
+  geom_point(aes(x=Sal1, y=S_abs_gsw))
+
+#now we need to calculate conservative temperature
+?gws_CT_from_t
+#we need absolute salinity, in-situ temp (ITS-90), and sea pressure 
+
+#add line to calculate conservative temperature and change from hydrostation_bottle to HydrosS to not create confusion
+HydroS=
+hydrostation_bottle %>%
+  filter(Sal1!=-999) %>% #filter for salinity missing
+  filter(Temp!=-999) %>%
+  mutate(Pres_gsw=gsw_p_from_z(Depth*-1,latN)) %>% #pressure for depth
+  mutate(S_abs_gsw=gsw_SA_from_SP(Sal1,Pres_gsw,360-lonW,latN)) %>%
+  mutate(T_cons_gsw=gsw_CT_from_t(S_abs_gsw,Temp,Pres_gsw))
+
+#missing data por eso se añadio filter 
+
+#hydrostation_bottle %>%
+  #filter(Sal1!=-999) %>%
+  #ggplot()+
+  #geom_point(aes(x=Sal1, y=S_abs_gsw))
+
+#hydrostation_bottle %>%
+  #filter(Temp!=-999) %>%
+  #ggplot()+
+  #geom_point(aes(x=Temp, y=T_cons_gsw))
+
+HydroS=
+hydrostation_bottle %>%
+  filter(Sal1!=-999) %>% 
+  filter(Temp!=-999) %>%
+  mutate(Pres_gsw=gsw_p_from_z(Depth*-1,latN)) %>% 
+  mutate(S_abs_gsw=gsw_SA_from_SP(Sal1,Pres_gsw,360-lonW,latN)) %>%
+  mutate(T_cons_gsw=gsw_CT_from_t(S_abs_gsw,Temp,Pres_gsw)) %>%
+  mutate(sig_th_gsw=gsw_sigma0(S_abs_gsw,T_cons_gsw))
+  
+HydroS %>%
+  filter(`Sig-th` !=-999) %>%
+  ggplot()+
+  geom_point(aes(x=`Sig-th`,y=sig_th_gsw))
+#but we have a very low sig-th-gsw so lets find it 
+
+#our bottle and ctd salonity do not agree, this is likley the problem for the low
+HydroS %>%
+  filter(sig_th_gsw<0) %>%
+  view()
+
+HydroS_correctedS_a=
+  HydroS %>% 
+  filter(sig_th_gsw<0) %>% #filter for negative value 
+  mutate(S_abs_gsw=gsw_SA_from_SP(CTD_S,Pres_gsw,360-lonW,latN)) %>%
+  mutate(T_cons_gsw=gsw_CT_from_t(S_abs_gsw,Temp,Pres_gsw)) %>%
+  mutate(sig_th_gsw=gsw_sigma0(S_abs_gsw,T_cons_gsw)) 
+
+HydroS_correctedS_b=
+  HydroS %>% 
+  filter(sig_th_gsw>0) 
+
+HydroS_correctedS = rbind(HydroS_correctedS_a,HydroS_correctedS_b)
+
+HydroS_correctedS %>% 
+  filter(`Sig-th`!=-999) %>%
+  ggplot()+
+  geom_point(aes(x=`Sig-th`,y=sig_th_gsw))
+
+#
+
+
+
+
+  
+```
+
+
