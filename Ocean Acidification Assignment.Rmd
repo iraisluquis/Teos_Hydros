@@ -1,0 +1,36 @@
+---
+title: "Ocean Acidification Assignment"
+author: "Irais Luquis Ramos"
+date: "2023-03-21"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+#Load required libraries
+
+```{r, message=FALSE}
+library(tidyverse)
+library(gsw)
+library(ggplot2)
+library(plotly)
+library('prettydoc')
+
+```
+
+#Lab Assignment
+
+1. Pick a question
+2. Produce a plot and a statistical summary using lm()
+3. Describe your results, the summary, and answer the question 
+4. Compile into a completed lab report using R markdown
+
+Potential question: Include hypothesis
+
+ - How do temperature, salinity, and sigma-theta co-vary?
+ - Is there a relationship between sigma theta and oxygen?
+ - Is there a relationship of the parameters with depth? with time? Within a depth range over time?
+ - Are there seasonal differences in any of the parameters?
+  
+#Import Data
+

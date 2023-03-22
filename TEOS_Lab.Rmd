@@ -14,6 +14,7 @@ output:
 library(tidyverse)
 library(gsw)
 library(ggplot2)
+library(plotly)
 #install.packages('seacarb')
 #install.packages('prettydoc')
 ```
@@ -30,8 +31,9 @@ hydrostation_bottle_names <- read_csv("hydrostation_bottle.txt",
     skip = 30)
 
 
+
 colnames(hydrostation_bottle)=colnames(hydrostation_bottle_names)
-#view(hydrostation_bottle)
+view(hydrostation_bottle)
 ```
 
 Variable Names and Units
@@ -96,6 +98,7 @@ hydrostation_bottle %>%
 
 ?gsw_sigma0 #lets check this function 
 #it says we need absolute salinity and conservative temperature USAGE
+
 
 #first we need absolute salinity:
 ?gsw_SA_from_SP
@@ -222,7 +225,17 @@ HydroS_correctedS %>%
   ggplot()+
   geom_point(aes(x=`Sig-th`,y=sig_th_gsw))
 
-#
+#Homework 
+
+HydroS_correctedS %>% 
+  ggplot()+
+  geom_point(aes(x=sig_th_gsw,y=Depth))+
+  scale_y_reverse()+
+  scale_x_continuous(position='top')+
+  #xlab(expression(paste(sigma[theta], "(kg m"^"-3",")"))) 
+  xlab(expression(paste(sigma*theta, "(kg m"^"-3",")" )))+
+  ylab('Depth (m)')+ 
+  theme_classic()
 
 
 
@@ -230,4 +243,170 @@ HydroS_correctedS %>%
   
 ```
 
+
+# Has surface sigma theta decreased over time?
+
+```{r}
+HydroS_shallow= HydroS_correctedS %>%
+  filter(Depth>30)
+
+?lm #constroc a linear model
+#lm(y~x, data=data) y is a funcion of x meaning data=data 
+lm(sig_th_gsw~decy,data=HydroS_shallow)
+#coefficients (intercept and decay)
+#y=mx+b
+#y=sig_th_gsw
+#x=decy
+#coefficient: intercept= b, decy=m
+#sig_th_gsw= -0.004*decy + 33.4
+#(kg/m3) = (kg/m3/y)*y + (kg/m3)
+
+sig_theta_time_model=lm(sig_th_gsw~decy,data=HydroS_shallow)
+summary(sig_theta_time_model)
+
+
+plot=HydroS_shallow %>%
+  ggplot(aes(x=decy,y=sig_th_gsw))+
+  geom_point()+
+  geom_line()+
+  geom_smooth(method="lm")+
+  theme_classic()
+
+ggplotly(plot)
+  
+```
+
+#Lab Assignment
+
+1. Pick a question
+2. Produce a plot and a statistical summary using lm()
+3. Describe your results, the summary, and answer the question 
+4. Compile into a completed lab report using R markdown
+
+Potentia question: Include hypothesis (usar pag de cosas que se pueden calcualr)
+
+  How do temperature, salinity, and sigma-theta co-vary?
+  Is there a relationship between sigma theta and oxygen?
+  Is there a relationship of the parameters with depth? with time?
+Whithin a depth range over time?
+  Are there seasonal differences in any of the parameters?
+  
+```{r}
+HydroS_seaosons_1=
+  HydroS_correctedS %>% 
+  mutate(month=as.numeric(substr(yyyymmd,5,6))) %>% 
+  mutate(season=ifelse(month==12|month==1|month==2|month==3,'winter', ifelse(month==8|month==9|month==10, 'summer','')))
+
+view(HydroS_seaosons_1)
+?substr
+
+#In Bermuda; Dec to March = winter months August-October = Summer Months
+#whic mean if month is greater than august (8) and month is less or equal to 10...
+
+#Is disolved oxygen 
+#Is salinity higher in summmer than winter?
+#Is sound speed higher 
+#is spicines higher
+
+summary(lm(`o2(1)`~season,data=HydroS_seaoson_1))
+
+month>=8&month<=10
+
+HydroS_months$season=
+  month==c(12,1,2,3)
+  
+HydroS_months$season=
+  with(HydroS_months, ifelse(month==c(12,1,2,3),'winter',
+                             ifelse(month==c(8,9,10),'summer','')))
+
+
+
+```
+?gsw
+?gsw_CT_from_rho
+
+#The relationship between conservative temperature and density throught time/seasons? #Many elements 
+
+
+#The change in density througt seasons 
+
+#Changes over time in conservative temperature. 
+  
+```{r}
+#HydroS_seaoson_2=
+  HydroS_correctedS %>% 
+  mutate(month=as.numeric(substr(yyyymmd,5,6))) %>% 
+  mutate(season=ifelse(month==12|month==12|month==1|month==2,'winter', ifelse(month==6|month==7|month==8, 'summer',
+ifelse(month==3|month==4|month==5,'spring',
+ifelse(month==9|month==10|month==10,'Autum', '')))))+
+
+#View(HydroS_seaoson_2)
+
+S_D=HydroS_seaoson %>%
+  ggplot(aes(x=month,y=decy))+
+  geom_point()+
+  geom_line()+
+  geom_smooth(method="lm")+
+  theme_classic()
+
+S_D 
+
+summary(lm(`Sig-th`~month,data=HydroS_seaoson)) 
+
+
+
+
+
+###################TIME 
+
+HydroS_time=
+  HydroS_correctedS %>%
+  mutate(hours=as.numeric(substr(time,2,3))) %>% 
+  
+
+HydroS_time
+
+summary(lm(`Sig-th`~hours,data=HydroS_time))
+
+
+
+```
+  
+#########Lab Assigment question 
+
+1. Question and hypothesis
+
+-What are the changes in conservative temperature over time? Is conservative temperature higher in summer than winter?
+
+Conservative temperature is increasing over time... and is higher in...
+  
+2. Produce a plot and a statistical summary using lm()
+
+# The data gives me the Temperature ITS-90 (C) wich is the potential temperature. To get the conservative temperature 
+  I need to use;
+  CT = gsw_CT_from_pt(SA,pt)
+  
+#Firts plot the data to see what are we working with and eliminate the missing data
+```{r}
+hydrostation_bottle %>%
+  filter(Temp!=-999) %>%
+  ggplot()+
+  geom_point(aes(x = decy, y = Temp)) 
+
+#Create variable for x=month y=CT
+
+#clear seasonal signal for Temperature,lets see how this compares to seasons
+#Create Variable of month to see how it compares to winter vs. summer 
+
+hydrostation_bottle %>%
+  filter(Temp!=-999) %>%
+  ggplot()+
+  geom_point(aes(x = decy, y = Temp))+
+  mutate(month=as.numeric(substr(yyyymmd,5,6))) %>% 
+  mutate(month=ifelse(month==12|month==1|month==2|month==3,'winter', ifelse(month==8|month==9|month==10, 'summer','')))
+
+
+
+  
+```
 
